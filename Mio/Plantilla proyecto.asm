@@ -10,6 +10,11 @@
     var db 0 ; Variable de prueba
     steps_before_direction_change = 20h ; 32 (decimal)
     
+    msj_paso db 10,13,"Ingresar 'c' para PASO COMPLETO o 'h' para MEDIO PASO: $",10,13
+    msj_direccion db 10,13,"Enter 'c' for clockwise or 'a' for anticlockwise: $",10,13
+
+    
+    ; Secuencia de activacion para rotar el motor
     datcw    db 0000_0110b
              db 0000_0100b    
              db 0000_0011b
@@ -44,8 +49,58 @@ inicio:
 
     MOV AX,@DATA  
     MOV DS,AX
+    
+    mov ah, 9
+    mov dx, offset msj_paso
+    int 21h ;mensaje para el tipo de paso que usara el programa
+    
+    mov ah, 1
+    int 21h  ;respuesta del usuario
+    
+    MOV SI, 0
+    MOV CX, 0 ; step counter
+    
+    cmp al, 'h'  ; eleccion de medio paso
+    je medio_paso
+    
+    cmp al, 'c' ;eleccion paso completo
+    je paso_completo          
+    
+    
+medio_paso:
+    mov bx, offset datcw ; start from clock-wise half-step.
+    jmp start_direccion
 
-    MOV BX, offset datcw ; start from clock-wise half-step.
+paso_completo:
+
+    mov bx, offset datcw_fs ; start from clock-wise full-step.
+    jmp start_direccion
+    
+    
+start_direccion:
+    
+    mov ah, 9
+    mov dx, offset msj_direccion
+    int 21h   
+    
+    mov ah, 1
+    int 21h  ; read user input 
+    
+    cmp al, 'c'  ;al sentido del reloj
+    je next_step
+    
+    cmp al, 'a' ; al sentido contrario del reloj
+    je direc_invertida
+    
+    jmp start_direccion   ; tecla invalida, el programa vuelve a preguntar
+
+direc_invertida:
+    mov bx, offset datccw ;este apartado sirve para iniciar con la direccion invertida
+    jmp control
+                
+                
+                
+control:    
     MOV SI, 0
     MOV CX, 0 ; step counter
 
@@ -62,8 +117,10 @@ next_step:
     INC SI
 
     CMP SI, 4
+    ;JUMP if Below
     JB next_step
-
+    
+    ;SI ya llego a 4
     MOV SI, 0
 
     INC CX
