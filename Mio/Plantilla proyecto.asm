@@ -7,13 +7,12 @@
 
 ;Segmento de datos
 .data
-    var db 0 ; Variable de prueba
+  
     steps_before_direction_change = 20h ; 32 (decimal)
     
-    msj_paso db 10,13,"Ingresar 'c' para PASO COMPLETO o 'h' para MEDIO PASO: $",10,13
-    msj_direccion db 10,13,"Enter 'c' for clockwise or 'a' for anticlockwise: $",10,13
-
-    
+    msj_paso db 10,13,"Ingresar '1' para PASO COMPLETO o '0' para MEDIO PASO: $",10,13
+    msj_direccion db 10,13,"Ingresar '1' para sentido de reloj o '0' para sentido contrario: $",10,13
+ 
     ; Secuencia de activacion para rotar el motor
     datcw    db 0000_0110b
              db 0000_0100b    
@@ -54,51 +53,62 @@ inicio:
     mov dx, offset msj_paso
     int 21h ;mensaje para el tipo de paso que usara el programa
     
-    mov ah, 1
+    MOV AH, 01h     
     int 21h  ;respuesta del usuario
     
     MOV SI, 0
     MOV CX, 0 ; step counter
     
-    cmp al, 'h'  ; eleccion de medio paso
+    cmp al, '1'  ; eleccion de medio paso
     je medio_paso
     
-    cmp al, 'c' ;eleccion paso completo
+    cmp al, '0' ;eleccion paso completo
     je paso_completo          
     
     
-medio_paso:
+medio_paso: 
+    ;Direccion modo medio paso
     mov bx, offset datcw ; start from clock-wise half-step.
-    jmp start_direccion
+    jmp start_direccion_mp
 
 paso_completo:
-
+    ;Direccion para el paso completo
     mov bx, offset datcw_fs ; start from clock-wise full-step.
-    jmp start_direccion
+    jmp start_direccion_pcmp
     
-    
-start_direccion:
-    
+start_direccion_mp:  
+
     mov ah, 9
     mov dx, offset msj_direccion
     int 21h   
     
-    mov ah, 1
-    int 21h  ; read user input 
+    mov ah, 01h
+    int 21h  ; read user input
     
-    cmp al, 'c'  ;al sentido del reloj
-    je next_step
+    cmp al, '1'
+    je control
     
-    cmp al, 'a' ; al sentido contrario del reloj
-    je direc_invertida
-    
-    jmp start_direccion   ; tecla invalida, el programa vuelve a preguntar
-
-direc_invertida:
-    mov bx, offset datccw ;este apartado sirve para iniciar con la direccion invertida
+    cmp al, '0'
+    mov bx, offset datccw 
     jmp control
-                
-                
+    
+    jmp start_direccion_mp   ; tecla invalida, el programa vuelve a preguntar
+    
+    
+start_direccion_pcmp:
+    
+    mov ah, 09h
+    mov dx, offset msj_direccion
+    int 21h
+    
+    cmp al, '1'  ;al sentido del reloj
+    je control
+    
+    cmp al, '0' ; al sentido contrario del reloj
+    mov bx, offset datccw_fs 
+    je  start_direccion_pcmp
+    
+    jmp start_direccion_pcmp   ; tecla invalida, el programa vuelve a preguntar             
                 
 control:    
     MOV SI, 0

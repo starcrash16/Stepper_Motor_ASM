@@ -1,0 +1,246 @@
+
+;Intento Proyecto leer una tecla desde el teclado
+;7/05/24  
+
+#start=stepper_motor.exe#
+
+.model small 
+
+print MACRO msj
+    MOV AH,09
+    MOV DX,OFFSET msj
+    INT 21h
+ENDM  
+
+;Segmento de pila
+.stack ;Por default, el stack es 100h 
+                       
+                       
+                       
+;Segmento de datos     
+.data 
+
+msj1 DB "Abrir el porton  [->]" ,13,10,'$'
+msj2 DB "Cerrar el porton [<-]",13,10,'$'
+msj3 DB "Parar el porton  [S]",13,10,'$'
+msj4 DB "SALIR            [E]",13,10,'$'
+msj5 DB "Tu opcion:",13,10,'$'
+msj6 DB "->",13,10,'$'
+msj7 DB "<-",13,10,'$'
+opc  DB  13,10,"opcion no valida.." ,'$'
+msj8 DB  13,10,"Paraste la puerta en apertura..",13,10,'$'
+continuacion DB 13,10,"Continuar con la tarea [Y/R]?",'$'
+msj9 DB 13,10,"La puerta se ha cerrado!!",'$'    
+
+
+
+;datos para el motor del pasos  
+
+var db 0 ; Variable de prueba
+steps_before_direction_change = 40h  ; 
+
+;matrices de combinaciones para las bobinas
+datcw    db 0000_0110b
+         db 0000_0100b    
+         db 0000_0011b
+         db 0000_0010b
+                      
+                      
+                      
+; Matriz con secuencia para rotar en sentido 
+;ANTI-HORARIO
+; half-step rotation:
+datccw   db 0000_0011b
+         db 0000_0001b    
+         db 0000_0110b
+         db 0000_0010b
+
+
+;SENTIDO-HORARIO
+;paso completo , las bobinas se activan todas de 
+;forma simultanea para generar un paso mas grande
+
+; full-step rotation:
+datcw_fs db 0000_0001b
+         db 0000_0011b    
+         db 0000_0110b
+         db 0000_0000b
+
+; SENTIDO-ANTIHORARIO
+; paso completo
+datccw_fs db 0000_0100b
+          db 0000_0110b    
+          db 0000_0011b
+          db 0000_0000b
+          
+bandAb    DW 0
+bandCr    DW 0
+ 
+
+
+;Segmento de codigo
+.code
+
+;Estas lineas recuperan la direccion de memoria .data para el DS
+MOV AX,@DATA
+MOV DS,AX
+
+inicio: 
+  
+  
+  MOV BX, offset datcw ; start from clock-wise half-step.
+  MOV SI, 0
+  MOV CX, 0 ; step counter
+  MOV DI, 0 ;contador del numero de vueltas 
+  
+  MOV AH,0
+  MOV AL,0
+  INT 10h
+  
+  
+  
+  print msj1
+  print msj2
+  print msj3
+  print msj4
+  print msj5
+  
+  lectura:
+  CALL lecturaTecla ;funcion -> brinca a la etiqueta  y TIENE QUE HABER UN RETORNO
+  MOV AH,0Eh   ;funcion teletipo     INVESTIGA LAS FUNCIONES DE INT 10h y 20h y otras
+  INT 10h
+  CMP AL,"S"
+  JE  fin;
+  JNE opcionNA
+        
+        
+  lecturaTecla:
+  ;GUARDA LA DIRECCION SIGUIENTE PARA PODER EJECUTAR lo que se rrequiere para 
+  ;volver a regresar NO ES LINEAL
+     XOR AX,AX
+     INT 16h ; interrupcion del teclado
+     CMP AH,4Bh
+     JE  flechaI
+     CMP ah,4Dh
+     je  flechaD
+ 
+   aqui:    
+     RET
+   
+   cambiarTecla:
+            
+      ;ascii que se va a imprimir 
+       MOV AL,0A4h   ;ascii de la ene[ñ]
+       JMP aqui
+        
+   ;-----------------------detecta las flechasy letras del teclado
+   flechaD:
+       ;impriir una flecha
+       print msj6
+       JMP abrir
+       
+   flechaI:
+       print msj7
+       JMP cerrar
+   
+   opcionNA:
+       print opc 
+       JMP inicio; 
+       
+   ;-----------------------comienza motor de pasos---------------
+   
+   abrir:
+      ;abrir con flecha derecha 
+      ; se necesitan 8 vueltas completas
+      ;---codigo predefinido por la plantilla------------------
+      next_step: 
+            
+             MOV DL,0FFh ;espera por tecla y compara con escp
+             MOV AH,06
+             INT 21h
+             CMP AL,"s"      ;Comparar el caracter ingresado por teclado con el Escape (Esc)
+             JE  comprobacion  
+            
+            WAIT: IN AL,7
+            TEST  AL,10000000b
+            JZ WAIT                 
+            
+      MOV AL,[BX][SI]
+      out 7,AL ;se manda al puerto 7
+      INC SI
+       
+      
+      ;pasos que da SI 
+      CMP SI,4
+      JB next_step ;si es menor de 4 salta 
+      
+      ;reinicia SI para acompletar el giro
+      MOV SI,0
+      INC CX
+      INC DI
+      
+      CMP CX,bandAb
+      JE  cerraste
+      
+      CMP CX,steps_before_direction_change
+      JB next_step
+      JE comprobacion 
+      
+   
+   cerrar:
+      
+   
+  comprobacion:
+    
+    MOV bandAb,DI
+    ; se verifica si se paro en la apertura
+    CMP bandAb,0
+    JG  paroApertura  
+    
+    CMP bandCr,0
+    JG  paroCierre 
+    
+    paroApertura:
+        print msj8 
+        print continuacion
+        
+        ;se lee la respuesta 
+        MOV AH,01
+        INT 21h
+        
+        CMP AL,"Y"
+        JE  next_step
+        
+        CMP AL,"R"
+        JE  rrevertir
+        JNE opcionNA
+        
+        rrevertir:
+            ;si no es menor , se hace un incremento de CX para que se acomplete
+            ;el giro 
+      
+            MOV CX,0
+            ADD BX,4 ;se suman cuatro para las proximas combinaciones
+      
+            cmp bx, offset datccw_fs
+            jbe next_step
+
+            mov bx, offset datcw ; return to clock-wise half-step.
+
+            jmp next_step 
+            
+     
+     cerraste:
+           print msj9
+         
+     
+     paroCierre:
+     
+     
+      
+  
+  fin:
+  MOV AH, 4Ch
+  INT 21h 
+  
+END
