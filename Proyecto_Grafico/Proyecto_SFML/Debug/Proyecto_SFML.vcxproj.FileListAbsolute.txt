@@ -1,0 +1,3 @@
+C:\SFML\Proyecto\Proyecto_SFML\Debug\Proyecto_SFML.exe
+C:\Users\cubi0\OneDrive\Escritorio\Proyecto_Ensamblador\Proyecto_SFML\Debug\Proyecto_SFML.exe
+C:\Users\cubi0\OneDrive\Escritorio\Proyecto_Ensamblador\Proyecto_Grafico\Proyecto_SFML\Debug\Proyecto_SFML.exe
